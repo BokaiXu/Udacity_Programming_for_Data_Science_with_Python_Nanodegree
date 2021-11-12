@@ -1,0 +1,96 @@
+\*Q1
+SELECT film_title, category_name, COUNT(rental_id) AS rental_count
+FROM(
+SELECT film.film_id, film.title AS film_title, category.name AS category_name
+FROM film
+JOIN film_category
+ON film.film_id=film_category.film_id
+JOIN category
+ON category.category_id=film_category.category_id
+WHERE category.name IN ('Animation','Children','Classics','Comedy','Family','Music')
+) sub
+JOIN inventory
+ON inventory.film_id=sub.film_id
+JOIN rental
+ON rental.inventory_id=inventory.inventory_id
+GROUP BY 1,2
+ORDER BY 3 DESC
+LIMIT 10
+
+
+\*Q2
+SELECT DATE_TRUNC('month', r.rental_date) AS Rental_month,
+       s.store_id AS Store_ID,
+       COUNT(r.rental_id) AS Count_rentals
+FROM rental r
+JOIN staff s
+ON r.staff_id=s.staff_id
+JOIN store st
+ON st.store_id=s.store_id
+GROUP BY 1,2
+ORDER BY 2 DESC
+
+\*Q3
+SELECT DATE_PART('month', p.payment_date) AS pay_mon,
+      c.first_name ||' '|| c.last_name AS fullname,
+      COUNT(*),
+      SUM(p.amount)
+FROM payment p
+JOIN customer c
+ON p.customer_id = c.customer_id
+WHERE c.first_name ||' '|| c.last_name IN (
+SELECT sub.fullname
+FROM(
+SELECT c.first_name ||' '|| c.last_name AS fullname,
+       SUM(p.amount)
+FROM customer c
+JOIN payment p
+ON p.customer_id = c.customer_id
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 10
+) sub
+) AND p.payment_date BETWEEN '2007-01-01' AND '2008-01-01'
+GROUP BY 1,2
+ORDER BY 2,1
+
+/*Q4
+With sub2 AS (
+SELECT DATE_PART('month', p.payment_date) AS pay_mon,
+      c.first_name ||' '|| c.last_name AS fullname,
+      COUNT(*),
+      SUM(p.amount)
+FROM payment p
+JOIN customer c
+ON p.customer_id = c.customer_id
+WHERE c.first_name ||' '|| c.last_name IN (
+SELECT sub.fullname
+FROM(
+SELECT c.first_name ||' '|| c.last_name AS fullname,
+       SUM(p.amount)
+FROM customer c
+JOIN payment p
+ON p.customer_id = c.customer_id
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 10
+) sub
+) AND p.payment_date BETWEEN '2007-01-01' AND '2008-01-01'
+GROUP BY 1,2
+ORDER BY 2,1
+),
+
+sub3 AS(
+SELECT *,
+       LEAD(sub2.sum) OVER(PARTITION BY sub2.fullname ORDER BY sub2.pay_mon),
+       LEAD(sub2.sum) OVER(PARTITION BY sub2.fullname ORDER BY sub2.pay_mon) - sub2.sum AS difference
+FROM sub2
+)
+
+SELECT sub3.*,
+       CASE WHEN sub3.difference = (
+       SELECT MAX(sub3.difference)
+       FROM sub3
+       ) THEN 'Is max'
+       ELSE NULL END AS Is_max
+FROM sub3
